@@ -4,11 +4,13 @@ import type React from "react"
 
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { Card, CardContent } from "@/components/ui/card"
 import { MapPin, Navigation, Search } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { popularDestinations } from "@/lib/mock-data"
+import { getCurrentLocation } from "@/lib/google-routes"
+import { LocationAutocomplete } from "@/components/location-autocomplete"
+import type { PlacePrediction } from "@/lib/google-places"
 
 export default function HomePage() {
   const [currentLocation, setCurrentLocation] = useState("")
@@ -22,25 +24,13 @@ export default function HomePage() {
 
     if ("geolocation" in navigator) {
       try {
-        const position = await new Promise<GeolocationPosition>((resolve, reject) => {
-          navigator.geolocation.getCurrentPosition(resolve, reject, {
-            enableHighAccuracy: true,
-            timeout: 10000,
-            maximumAge: 60000,
-          })
-        })
+        const locationName = await getCurrentLocation()
 
-        const mockLocations = [
-          "Nairobi CBD",
-          "Westlands Area",
-          "Karen Shopping Center",
-          "Eastleigh Section 1",
-          "Kasarani Estate",
-          "South C Shopping Center",
-          "Langata Link",
-        ]
-        const randomLocation = mockLocations[Math.floor(Math.random() * mockLocations.length)]
-        setCurrentLocation(randomLocation)
+        if (locationName) {
+          setCurrentLocation(locationName)
+        } else {
+          throw new Error("Could not determine location name")
+        }
       } catch (error) {
         console.error("Error getting location:", error)
         const errorMessage =
@@ -64,6 +54,14 @@ export default function HomePage() {
     }
   }
 
+  const handleCurrentLocationSelect = (prediction: PlacePrediction) => {
+    console.log("[v0] Selected current location:", prediction.description)
+  }
+
+  const handleDestinationSelect = (prediction: PlacePrediction) => {
+    console.log("[v0] Selected destination:", prediction.description)
+  }
+
   const handleFindMatatu = async () => {
     if (!currentLocation.trim() || !destination.trim()) {
       const missingField = !currentLocation.trim() ? "current-location" : "destination"
@@ -78,7 +76,7 @@ export default function HomePage() {
 
     setIsSearching(true)
 
-    await new Promise((resolve) => setTimeout(resolve, 1500))
+    await new Promise((resolve) => setTimeout(resolve, 800))
 
     const params = new URLSearchParams({
       from: currentLocation,
@@ -115,17 +113,15 @@ export default function HomePage() {
                 <span className="sr-only">Required field</span>
               </label>
               <div className="flex gap-2">
-                <Input
+                <LocationAutocomplete
                   id="current-location"
                   placeholder="Enter your current location"
                   value={currentLocation}
-                  onChange={(e) => {
-                    setCurrentLocation(e.target.value)
-                    e.target.removeAttribute("aria-invalid")
-                  }}
+                  onChange={setCurrentLocation}
+                  onSelect={handleCurrentLocationSelect}
                   className="flex-1 transition-all duration-200 focus:scale-[1.02]"
                   disabled={isSearching}
-                  aria-required="true"
+                  aria-required={true}
                   aria-describedby="current-location-help"
                 />
                 <Button
@@ -157,17 +153,15 @@ export default function HomePage() {
                 Destination
                 <span className="sr-only">Required field</span>
               </label>
-              <Input
+              <LocationAutocomplete
                 id="destination"
                 placeholder="Where do you want to go?"
                 value={destination}
-                onChange={(e) => {
-                  setDestination(e.target.value)
-                  e.target.removeAttribute("aria-invalid")
-                }}
+                onChange={setDestination}
+                onSelect={handleDestinationSelect}
                 disabled={isSearching}
                 className="transition-all duration-200 focus:scale-[1.02]"
-                aria-required="true"
+                aria-required={true}
                 aria-describedby="destination-help"
               />
               <div id="destination-help" className="sr-only">
